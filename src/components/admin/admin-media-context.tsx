@@ -87,7 +87,7 @@ export function AdminMediaProvider({
   initialMedia?: Record<string, SlotMedia>;
   initialSettings?: { heroTextColor: string };
 }) {
-  const [mode, setModeState] = useState<ShopMode>("admin");
+  const [mode, setModeState] = useState<ShopMode>("viewer");
   const [media, setMedia] = useState<Record<string, SlotMedia>>(initialMedia);
   const [heroTextColor, setHeroTextColorState] = useState(
     initialSettings?.heroTextColor ?? DEFAULT_HERO_TEXT_COLOR,

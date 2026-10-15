@@ -34,8 +34,8 @@ export function saveHeroTextColor(color: string): void {
 }
 
 export function loadShopMode(): ShopMode {
-  if (typeof window === "undefined") return "admin";
-  return window.localStorage.getItem(MODE_KEY) === "viewer" ? "viewer" : "admin";
+  if (typeof window === "undefined") return "viewer";
+  return window.localStorage.getItem(MODE_KEY) === "admin" ? "admin" : "viewer";
 }
 
 export function saveShopMode(mode: ShopMode): void {
