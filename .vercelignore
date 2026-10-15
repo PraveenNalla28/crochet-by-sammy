@@ -1,0 +1,7 @@
+src/generated
+prisma/dev.db
+.tmp-logo-*.png
+.env
+.env.*
+.node_modules
+.next
