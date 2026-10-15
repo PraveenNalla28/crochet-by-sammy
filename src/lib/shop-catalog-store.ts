@@ -1,5 +1,4 @@
-import { mkdir, readFile, writeFile } from "fs/promises";
-import path from "path";
+import { readJsonRecord, writeJsonRecord } from "@/lib/shop-blob";
 import {
   EMPTY_CATALOG,
   isShopCatalogTab,
@@ -10,7 +9,7 @@ import {
   type CatalogState,
 } from "@/lib/shop-catalog";
 
-const DATA_PATH = path.join(process.cwd(), "data", "shop-catalog.json");
+const DATA_PATH = "data/shop-catalog.json";
 
 function asString(value: unknown, max = 120) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
@@ -105,17 +104,12 @@ export function sanitizeCatalog(input: unknown): CatalogState {
 }
 
 export async function readShopCatalog(): Promise<CatalogState> {
-  try {
-    const raw = await readFile(DATA_PATH, "utf8");
-    return sanitizeCatalog(JSON.parse(raw));
-  } catch {
-    return { ...EMPTY_CATALOG };
-  }
+  const raw = await readJsonRecord<unknown>(DATA_PATH, EMPTY_CATALOG);
+  return sanitizeCatalog(raw);
 }
 
 export async function saveShopCatalog(input: unknown): Promise<CatalogState> {
   const catalog = sanitizeCatalog(input);
-  await mkdir(path.dirname(DATA_PATH), { recursive: true });
-  await writeFile(DATA_PATH, JSON.stringify(catalog, null, 2), "utf8");
+  await writeJsonRecord(DATA_PATH, catalog);
   return catalog;
 }

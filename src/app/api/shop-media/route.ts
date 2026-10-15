@@ -31,9 +31,15 @@ export async function POST(request: Request) {
   if (file.size > 8_000_000) {
     return NextResponse.json({ error: "That photo is too large." }, { status: 400 });
   }
-  const bytes = Buffer.from(await file.arrayBuffer());
-  const media = await saveSlotImage(slot, bytes);
-  return NextResponse.json({ media });
+  try {
+    const bytes = Buffer.from(await file.arrayBuffer());
+    const media = await saveSlotImage(slot, bytes);
+    return NextResponse.json({ media });
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Could not save that photo.";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
 
 export async function PATCH(request: Request) {

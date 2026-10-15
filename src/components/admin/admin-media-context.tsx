@@ -136,7 +136,12 @@ export function AdminMediaProvider({
       body.append("file", dataUrlToBlob(dataUrl), `${slot}.jpg`);
       const res = await fetch("/api/shop-media", { method: "POST", body });
       if (!res.ok) {
-        throw new Error("Could not save that photo. Try a smaller image.");
+        const data = (await res.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+        throw new Error(
+          data?.error || "Could not save that photo. Please try again.",
+        );
       }
       const saved = (await res.json()) as { media?: Record<string, SlotMedia> };
       persistLocal(saved.media ?? {});

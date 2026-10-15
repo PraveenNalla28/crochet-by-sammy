@@ -1,10 +1,13 @@
-import { mkdir, readFile, unlink, writeFile } from "fs/promises";
-import path from "path";
 import type { SlotMedia } from "@/lib/admin-media";
+import {
+  deletePublicImage,
+  readJsonRecord,
+  savePublicImage,
+  writeJsonRecord,
+} from "@/lib/shop-blob";
 
-const DATA_PATH = path.join(process.cwd(), "data", "home-media.json");
-const SETTINGS_PATH = path.join(process.cwd(), "data", "home-settings.json");
-const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads");
+const MEDIA_PATH = "data/home-media.json";
+const SETTINGS_PATH = "data/home-settings.json";
 
 export type ShopSettings = {
   heroTextColor: string;
@@ -15,58 +18,49 @@ export const DEFAULT_SETTINGS: ShopSettings = {
 };
 
 function safeSlot(slot: string): string {
-  return slot.replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/^-|-$/g, "").slice(0, 80) || "photo";
+  return (
+    slot.replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/^-|-$/g, "").slice(0, 80) ||
+    "photo"
+  );
+}
+
+function asMedia(parsed: Record<string, unknown>): Record<string, SlotMedia> {
+  const next: Record<string, SlotMedia> = {};
+  for (const [key, value] of Object.entries(parsed)) {
+    if (!value || typeof value !== "object" || !("src" in value)) continue;
+    const v = value as Partial<SlotMedia>;
+    if (typeof v.src !== "string" || !v.src) continue;
+    next[key] = {
+      src: v.src,
+      x: typeof v.x === "number" ? v.x : 0,
+      y: typeof v.y === "number" ? v.y : 0,
+      scale: typeof v.scale === "number" ? v.scale : 1,
+    };
+  }
+  return next;
 }
 
 export async function readHomeMedia(): Promise<Record<string, SlotMedia>> {
-  try {
-    const raw = await readFile(DATA_PATH, "utf8");
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    if (!parsed || typeof parsed !== "object") return {};
-    const next: Record<string, SlotMedia> = {};
-    for (const [key, value] of Object.entries(parsed)) {
-      if (!value || typeof value !== "object" || !("src" in value)) continue;
-      const v = value as Partial<SlotMedia>;
-      if (typeof v.src !== "string" || !v.src) continue;
-      next[key] = {
-        src: v.src,
-        x: typeof v.x === "number" ? v.x : 0,
-        y: typeof v.y === "number" ? v.y : 0,
-        scale: typeof v.scale === "number" ? v.scale : 1,
-      };
-    }
-    return next;
-  } catch {
-    return {};
-  }
+  const parsed = await readJsonRecord<Record<string, unknown>>(MEDIA_PATH, {});
+  if (!parsed || typeof parsed !== "object") return {};
+  return asMedia(parsed);
 }
 
 async function writeHomeMedia(media: Record<string, SlotMedia>): Promise<void> {
-  await mkdir(path.dirname(DATA_PATH), { recursive: true });
-  await writeFile(DATA_PATH, JSON.stringify(media, null, 2), "utf8");
+  await writeJsonRecord(MEDIA_PATH, media);
 }
 
 export async function saveSlotImage(
   slot: string,
   bytes: Buffer,
 ): Promise<Record<string, SlotMedia>> {
-  await mkdir(UPLOAD_DIR, { recursive: true });
-  const name = `${safeSlot(slot)}-${Date.now()}.jpg`;
-  const filePath = path.join(UPLOAD_DIR, name);
-  await writeFile(filePath, bytes);
-
+  const name = `uploads/${safeSlot(slot)}-${Date.now()}.jpg`;
+  const src = await savePublicImage(name, bytes);
   const media = await readHomeMedia();
   const previous = media[slot]?.src;
-  media[slot] = { src: `/uploads/${name}`, x: 0, y: 0, scale: 1 };
+  media[slot] = { src, x: 0, y: 0, scale: 1 };
   await writeHomeMedia(media);
-
-  if (previous?.startsWith("/uploads/")) {
-    const oldPath = path.join(process.cwd(), "public", previous.replace(/^\//, ""));
-    if (oldPath.startsWith(UPLOAD_DIR)) {
-      await unlink(oldPath).catch(() => undefined);
-    }
-  }
-
+  await deletePublicImage(previous);
   return media;
 }
 
@@ -88,18 +82,16 @@ export async function saveSlotTransform(
 }
 
 export async function readShopSettings(): Promise<ShopSettings> {
-  try {
-    const raw = await readFile(SETTINGS_PATH, "utf8");
-    const parsed = JSON.parse(raw) as Partial<ShopSettings>;
-    const color =
-      typeof parsed.heroTextColor === "string" &&
-      /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(parsed.heroTextColor)
-        ? parsed.heroTextColor
-        : DEFAULT_SETTINGS.heroTextColor;
-    return { heroTextColor: color };
-  } catch {
-    return { ...DEFAULT_SETTINGS };
-  }
+  const parsed = await readJsonRecord<Partial<ShopSettings>>(
+    SETTINGS_PATH,
+    DEFAULT_SETTINGS,
+  );
+  const color =
+    typeof parsed.heroTextColor === "string" &&
+    /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(parsed.heroTextColor)
+      ? parsed.heroTextColor
+      : DEFAULT_SETTINGS.heroTextColor;
+  return { heroTextColor: color };
 }
 
 export async function saveShopSettings(
@@ -112,7 +104,6 @@ export async function saveShopSettings(
       ? next.heroTextColor
       : current.heroTextColor;
   const settings = { heroTextColor: color };
-  await mkdir(path.dirname(SETTINGS_PATH), { recursive: true });
-  await writeFile(SETTINGS_PATH, JSON.stringify(settings, null, 2), "utf8");
+  await writeJsonRecord(SETTINGS_PATH, settings);
   return settings;
 }
